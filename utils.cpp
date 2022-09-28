@@ -4,7 +4,9 @@
 
 #include "utils.h"
 
+using namespace std;
 
+//ref : https://blog.csdn.net/whatday/article/details/111595919
 
 //获取第N项开始的指针
 const char* get_items(const char*buffer ,unsigned int item){
@@ -47,6 +49,7 @@ unsigned long get_cpu_total_occupy(){
     sscanf(buff,"%s %ld %ld %ld %ld",name,&t.user,&t.nice,&t.system,&t.idle);
     fclose(fd);
 
+    printf("cpu total: %s %ld %ld %ld %ld  ",name,t.user,t.nice,t.system,t.idle);
     return (t.user + t.nice + t.system + t.idle);
 }
 
@@ -73,6 +76,7 @@ unsigned long get_cpu_proc_occupy(unsigned int pid){
     sscanf(q,"%ld %ld %ld %ld",&t.utime,&t.stime,&t.cutime,&t.cstime);
     fclose(fd);
 
+    printf("proc: %ld %ld %ld %ld \n",t.utime,t.stime,t.cutime,t.cstime);
     return (t.utime + t.stime + t.cutime + t.cstime);
 }
 
@@ -88,7 +92,7 @@ float get_proc_cpu(unsigned int pid) {
     totalcputime1 = get_cpu_total_occupy();
     procputime1 = get_cpu_proc_occupy(pid);
 
-    usleep(200000);
+    usleep(20000);
 
     totalcputime2 = get_cpu_total_occupy();
     procputime2 = get_cpu_proc_occupy(pid);
@@ -125,6 +129,7 @@ unsigned int get_proc_mem(unsigned int pid){
 
     fgets(line_buff,sizeof(line_buff),fd);
     sscanf(line_buff,"%s %d",name,&vmrss);
+    printf("proc mem: %s %d\n",name,vmrss);
     fclose(fd);
 
     return vmrss;
@@ -155,6 +160,7 @@ unsigned int get_proc_virtualmem(unsigned int pid){
 
     fgets(line_buff,sizeof(line_buff),fd);
     sscanf(line_buff,"%s %d",name,&vmsize);
+    printf("proc virtual mem: %s %d\n",name,vmsize);
     fclose(fd);
 
     return vmsize;
@@ -163,7 +169,7 @@ unsigned int get_proc_virtualmem(unsigned int pid){
 
 
 //进程本身
-int get_pid(const char* process_name, const char* user = nullptr)
+int get_pid(const char* process_name, const char* user  )
 {
     if(user == nullptr){
         user = getlogin();

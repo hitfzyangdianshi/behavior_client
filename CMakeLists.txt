@@ -3,6 +3,4 @@ project(DPI_server)
 
 set(CMAKE_CXX_STANDARD 11)
 
-add_executable(main main.cpp memory_utilization.cpp memory_utilization.h cup_utilization.cpp cup_utilization.h utils.cpp utils.h)
-
-add_executable(challenge_test challenge_test.cpp)
+add_executable(main main.cpp utils.cpp)

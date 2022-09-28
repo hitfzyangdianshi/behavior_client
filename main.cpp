@@ -8,8 +8,8 @@
 
 
 
-#include "cup_utilization.h"
-#include "memory_utilization.h"
+#include "utils.h"
+
 
 using namespace std;
 
@@ -18,38 +18,28 @@ using namespace std;
 
 int main(int argc, char **argv) {
 
-    for(auto i=1;i<=9;i++) {
+    FILE *challenge_call;
+    int pid;
+    double proc_cpu;
+    int proc_mem, virtual_proc_mem;
 
-        cpu_occupy_t cpu_stat1;
-        cpu_occupy_t cpu_stat2;
-        double cpu;
-
-        get_cpuoccupy((cpu_occupy_t *)&cpu_stat1);
-        clock_t time1=clock();
-
-        FILE *challenge_call;
+    challenge_call = popen("./challenge_test 1 2", "r");
 
 
-        //sleep(1);
-        challenge_call= popen("./challenge_test 1 2","r");
+    pid = get_pid("DPI_challenge");
 
-        clock_t time2=clock();
-        double memory_utilization=  get_memory_utilization();
+    printf("pid = %d\n", pid);
 
-        get_cpuoccupy((cpu_occupy_t *)&cpu_stat2);
-
-
-        cpu = cal_cpuoccupy ((cpu_occupy_t *)&cpu_stat1, (cpu_occupy_t *)&cpu_stat2);
-
-        double execution = (double)((time2-time1) *1000000.0/CLOCKS_PER_SEC );
-
-        printf("[%d]\tCPU utilization:%f\tmemory utilization:%f\texecurtion time(ms):%f\n",i,cpu,memory_utilization,execution);
-
-        /*char challenge_result[80];
-        fgets(challenge_result, sizeof (challenge_result),challenge_call);
-        printf("%s\n",challenge_result);*/
+    for(int i=1;i<=20;i++) {
+        proc_cpu = get_proc_cpu(pid);
+        printf("proc_cpu = %f\n", proc_cpu);
     }
 
+    proc_mem= get_proc_mem(pid);
+    printf("proc_mem = %d\n", proc_mem);
+
+//    virtual_proc_mem=get_proc_virtualmem(pid);
+//    printf("virtual_proc_mem = %d\n", virtual_proc_mem);
 
     return 0;
 }
