@@ -5,12 +5,9 @@
 #ifndef UNTITLED_UTILS_H
 #define UNTITLED_UTILS_H
 
-
-#include <cstdio>
 #include <unistd.h>
 #include <sys/time.h>
-#include <cstring>
-#include <cstdlib>
+#include <bits/stdc++.h>
 
 
 #define VMRSS_LINE 22
