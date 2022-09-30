@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.23)
-project(DPI_server)
+project(DPI_client)
 
 set(CMAKE_CXX_STANDARD 11)
 

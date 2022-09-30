@@ -2,14 +2,15 @@
 // Created by qwertyu on 9/26/22.
 //
 
-#ifndef UNTITLED_UTILS_H
-#define UNTITLED_UTILS_H
+#ifndef UTILS_H
+#define UTILS_H
 
 #include <unistd.h>
 #include <sys/time.h>
 #include <bits/stdc++.h>
 
 
+/*please confirm the line number of /proc/{pid}/status before compiling */
 #define VMRSS_LINE 22
 #define VMSIZE_LINE 18
 #define PROCESS_ITEM 14
@@ -37,17 +38,17 @@ typedef struct {
 
 
 
-//获取CPU占用率
+//获取CPU占用率    get CPU utilization
 float get_proc_cpu(unsigned int pid);
 
-//获取进程占用内存
+//获取进程占用内存    get process memory usage
 unsigned int get_proc_mem(unsigned int pid);
 
 
-//获取进程占用虚拟内存
+//获取进程占用虚拟内存    get the virtual memory occupied by the process
 unsigned int get_proc_virtualmem(unsigned int pid);
 
-//进程本身
+//进程本身 get PID
 int get_pid(const char* process_name, const char* user = nullptr);
 
-#endif //UNTITLED_UTILS_H
+#endif //UTILS_H
