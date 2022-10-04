@@ -106,10 +106,15 @@ char* client_receiver(int port){
         return nullptr;
     }
 
+
+
+    struct sockaddr_in addr_client;
+    unsigned int len = sizeof(sockaddr_in);
+
+
     printf("====== waiting for composite_number ======\n");
 
-
-    if( (connfd = accept(listenfd, (struct sockaddr*)NULL, NULL)) == -1){
+    if ( (connfd = accept(listenfd, ((sockaddr *) &addr_client), &len)) == -1){
         printf("accept socket error: %s(errno: %d)",strerror(errno),errno);
         return nullptr;
     }
@@ -119,7 +124,7 @@ char* client_receiver(int port){
     printf("receive composite_number[%d]: %s\n", n, received_composite_number);
     //for(int i=0;i<9999;i++)printf("%c",received_composite_number[i]);
 
-
+    printf("accept ip address: %s\n", inet_ntoa(addr_client.sin_addr) );
 
     return received_composite_number;
 }
