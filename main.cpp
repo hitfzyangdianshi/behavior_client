@@ -227,7 +227,7 @@ int main(int argc, char **argv) {
     pthread_join(thread_getmem, NULL);
     pthread_join(thread_execurtion_time,NULL);
 
-    for(auto i=0;i<2000;i++){
+    for(int i=0;i<2000;i++){
         if( buffer[i]!='\0')    printf("%c",buffer[i]);
         else break;
     }
@@ -257,7 +257,7 @@ int main(int argc, char **argv) {
 
     FILE *cpu_txt=fopen("output_cpu.txt","r");
     double previous_cpu_average=0, current_cpu;
-    for(auto i=1;;i++){
+    for(int i=1;;i++){
         if(fscanf(cpu_txt,"%lf",&current_cpu)==EOF){
             break;
         }

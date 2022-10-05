@@ -5,6 +5,18 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#define HAVE_NULLPTR // remove this if you do not have nullptr in g++
+
+#ifndef HAVE_NULLPTR
+#if defined(_WIN64)
+# define nullptr 0LL
+#elif defined(__GNUC__)
+# define nullptr __null
+#else
+# define nullptr 0L
+#endif
+#endif /* defined(HAVE_NULLPTR) */
+
 #include <unistd.h>
 #include <sys/time.h>
 #include <bits/stdc++.h>
