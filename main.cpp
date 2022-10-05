@@ -43,7 +43,7 @@ void * run_challenge(void *pVoid){
         if(buffer[i]==255 || buffer[i]==EOF || buffer[i]==0)break; //solve segmentation fault issue, because the end of the reading fp is all 255
         i++;
     }
-    buffer[i+1]='\0';
+    buffer[i]='\0';
 
     for( i=0;i<2000;i++){
         if( buffer[i]!='\0')    printf("%c",buffer[i]);
