@@ -21,56 +21,74 @@ struct timeval tv1, tv2;
 
 char buffer[2000];
 
+char composite_number[1000];
 
-
-void * run_challenge(void *composite_number_void){
-
-    char *composite_number_char;
-    composite_number_char=(char*)composite_number_void;
+void * run_challenge(void *pVoid){
 
     FILE *fp;
 
     char filename[1000];
-    sprintf(filename,"../../DPI_challenge/cmake-build-debug/DPI_challenge %s",composite_number_char);
+    sprintf(filename,"../../DPI_challenge/cmake-build-debug/DPI_challenge %s",composite_number);
 
-   // fp=popen("../../DPI_challenge/cmake-build-debug/DPI_challenge 7778501398155158234329379851044392495981905731517000759689894061796959608753311502695149989403990224884679160908258491144655036429101337708614572719695328785370318152304469318400616849954163573497451833817712798606842462367788494746286256749429027955099393099163639377454422410245613969265378414494638467472139914136481125344018381165686155872034573594480340026053399825991407801908218764717676131353576748520264623783957434718633709564107642634376190582835226956683070381787871398","r");
+
+
     fp= popen(filename,"r");
+
 
     //fgets(buffer, sizeof(buffer),fp);
     char c;
     int i=0;
     while ( (c=fgetc(fp))!=EOF ){
         buffer[i]=c;
+        if(buffer[i]==255 || buffer[i]==EOF || buffer[i]==0)break; //solve segmentation fault issue, because the end of the reading fp is all 255
         i++;
+    }
+    buffer[i+1]='\0';
+
+    for( i=0;i<2000;i++){
+        if( buffer[i]!='\0')    printf("%c",buffer[i]);
+        else break;
     }
 
 }
+
+
+
 
 void * getcpu(void *pVoid){
     FILE *output_cpu=fopen("output_cpu.txt","w");
     int pid = 0;
     while(pid==0){
         pid = get_pid("DPI_challenge");
+        printf("pid = %d\n", pid);
     }
+
+
     char pid_path[64]={0};
     sprintf(pid_path,"/proc/%d/stat",pid);
     double proc_cpu;
-    printf("pid = %d\n", pid);
+
+
+
+
+
+
+
     while(true){
         if(fopen(pid_path,"r")==NULL){
+
             printf("get_cpu ends\n");
             break;
         }
         proc_cpu = get_proc_cpu(pid);
-#ifdef PRINT_DEBUG_INFO
-        printf("proc_cpu = %f\n", proc_cpu);
-#endif
-        if(proc_cpu<100){
+
+        if(proc_cpu<=100){
             fprintf(output_cpu,"%f\n",proc_cpu);
         }
     }
     fclose(output_cpu);
 }
+
 
 
 unsigned int proc_mem, virtual_proc_mem;
@@ -95,6 +113,7 @@ void * getmem(void *pVoid){
     fclose(out_mem);
 }
 
+
 void * get_execurtion_timne(void *pVoid){
     int pid = 0;
     while(pid==0){
@@ -108,7 +127,6 @@ void * get_execurtion_timne(void *pVoid){
 
     execution_time=(tv2.tv_sec-tv1.tv_sec )* 1000000 + tv2.tv_usec-tv1.tv_usec;
 }
-
 
 
 
@@ -146,15 +164,13 @@ bool client_send(const char *ip, int port, char *buffer_to_send){
     return true;
 }
 
-char* client_receiver(int port){
-    char  *received_composite_number;
-    received_composite_number= (char*) malloc(9999*sizeof(char));
+void client_receiver(int port){
     int  listenfd, connfd,             n;
     struct sockaddr_in  servaddr;
 
     if( (listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1 ){
         printf("create socket error: %s(errno: %d)\n",strerror(errno),errno);
-        return nullptr;
+        return ;
     }
 
     servaddr.sin_family = AF_INET;
@@ -163,12 +179,12 @@ char* client_receiver(int port){
 
     if( bind(listenfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) == -1){
         printf("bind socket error: %s(errno: %d)\n",strerror(errno),errno);
-        return nullptr;
+        return ;
     }
 
     if( listen(listenfd, 10) == -1) {
         printf("listen socket error: %s(errno: %d)\n", strerror(errno), errno);
-        return nullptr;
+        return ;
     }
 
 
@@ -181,20 +197,18 @@ char* client_receiver(int port){
 
     if ( (connfd = accept(listenfd, ((sockaddr *) &addr_client), &len)) == -1){
         printf("accept socket error: %s(errno: %d)",strerror(errno),errno);
-        return nullptr;
+        return ;
     }
 
-    n=recv(connfd, received_composite_number, 9999, 0);
-    received_composite_number[n] = '\0';
-    printf("receive composite_number[%d]: %s\n", n, received_composite_number);
+    n=recv(connfd, composite_number, 9999, 0);
+    composite_number[n] = '\0';
+    printf("receive composite_number[%d]: %s\n", n, composite_number);
     //for(int i=0;i<9999;i++)printf("%c",received_composite_number[i]);
 
     printf("accept ip address: %s\n", inet_ntoa(addr_client.sin_addr) );
 
     close(listenfd);
     close(connfd);
-
-    return received_composite_number;
 }
 
 
@@ -205,8 +219,7 @@ int main(int argc, char **argv) {
 
     memset(buffer,'\0',sizeof(char)*2000);
 
-    char *composite_number;
-    composite_number=client_receiver(4321);
+    client_receiver(4321);
 
 
 
@@ -217,7 +230,7 @@ int main(int argc, char **argv) {
 
 
 
-    pthread_create(&thread_challenge,NULL, run_challenge,composite_number);
+    pthread_create(&thread_challenge,NULL, run_challenge,NULL);
     pthread_create(&thread_getcpu, NULL, getcpu, NULL );
     pthread_create(&thread_getmem, NULL, getmem, NULL );
     pthread_create(&thread_execurtion_time,NULL,get_execurtion_timne,NULL);
@@ -227,32 +240,9 @@ int main(int argc, char **argv) {
     pthread_join(thread_getmem, NULL);
     pthread_join(thread_execurtion_time,NULL);
 
-    for(int i=0;i<2000;i++){
-        if( buffer[i]!='\0')    printf("%c",buffer[i]);
-        else break;
-    }
-    printf("\n");
 
-#ifdef PRINT_TEST_MAIN
-    int pid;
-    double proc_cpu;
-    int proc_mem, virtual_proc_mem;
+    printf("pthread ends . \n");
 
-    pid = get_pid("DPI_challenge");
-
-    printf("pid = %d\n", pid);
-
-    for(int i=1;i<=20;i++) {
-        proc_cpu = get_proc_cpu(pid);
-        printf("proc_cpu = %f\n", proc_cpu);
-    }
-
-    proc_mem= get_proc_mem(pid);
-    printf("proc_mem = %d\n", proc_mem);
-
-    virtual_proc_mem=get_proc_virtualmem(pid);
-    printf("virtual_proc_mem = %d\n", virtual_proc_mem);
-#endif
 
 
     FILE *cpu_txt=fopen("output_cpu.txt","r");
@@ -265,7 +255,6 @@ int main(int argc, char **argv) {
     }
 
     printf("average cpu usage: %f\n", previous_cpu_average);
-    printf("execution time 10e-6 seconds: %ld\n", execution_time);
 
 
     char buffer1[3000];
