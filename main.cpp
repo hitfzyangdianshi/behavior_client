@@ -16,17 +16,14 @@ using namespace std;
 //char composite_number[]="77785013981551582343293798510443924965464555461232131231556156315";
 
 
+char buffer[2000];
 
-
-char * get_execurtion_info(char *composite_number_char){
-    char *buffer;
-    buffer = (char *)malloc(9999*sizeof(char));
-
+void get_execurtion_info(char *composite_number_char){
 
     char filename[1000];
     sprintf(filename,"../../DPI_challenge/cmake-build-debug/DPI_challenge %s",composite_number_char);
 
-    char _usr_bin_time[]=R"(/usr/bin/time -f "\n*\nrealtime %e\nmemory_kb %M\ncpu %P"  2>&1)";
+    char _usr_bin_time[]=R"(/usr/bin/time -f "\n*\nrealtime %e\nmemory_kb %M\ncpu %P\n@"  2>&1)";
 
     char _usr_bin_time_command[1300];
     sprintf(_usr_bin_time_command, "%s %s",_usr_bin_time,filename);
@@ -38,11 +35,12 @@ char * get_execurtion_info(char *composite_number_char){
     int i=0;
     while ( (c=fgetc(fp))!=EOF ){
         buffer[i]=c;
+        if(buffer[i]=='@')break;
         i++;
+        if(i>=2000)break;
     }
 
     pclose(fp);
-    return buffer;
 }
 
 
@@ -126,6 +124,9 @@ char* client_receiver(int port){
 
     printf("accept ip address: %s\n", inet_ntoa(addr_client.sin_addr) );
 
+    close(listenfd);
+    close(connfd);
+
     return received_composite_number;
 }
 
@@ -133,27 +134,30 @@ char* client_receiver(int port){
 
 int main(int argc, char **argv) {
 
+    memset(buffer,'\0',sizeof(char)*2000);
+
     char *composite_number;
     composite_number=client_receiver(4321);
 
-    char *ret_challenge;
-    ret_challenge = get_execurtion_info(composite_number);
+    get_execurtion_info(composite_number);
 
    // FILE *challenge_out= fopen("challenge_out.txt","w");
 
-    for(auto i=0;i<9999;i++){
-        if( ((char*)ret_challenge)[i]!='\0')
+    for(auto i=0;i<2000;i++){
+        if( buffer[i]!='\0' && buffer[i]!='@')
         {
-            printf("%c",ret_challenge[i]);
-//            fputc(ret_challenge[i],challenge_out);
+            printf("%c",buffer[i]);
         }
-        else break;
+        else {
+            buffer[i]='\0';
+            break;
+        }
     }
     printf("\n");
 
 
 
-    bool send_data=client_send("192.168.33.1",4321,ret_challenge);
+    bool send_data=client_send(argv[1],4321,buffer);
     printf("%s\n",btoa(send_data));
 
     return 0;
