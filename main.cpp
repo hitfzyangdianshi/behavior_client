@@ -9,9 +9,7 @@
 
 #include "utils.h"
 
-
-#define MAXLINE 4096
-
+#define btoa(x) ((x)?"true":"false")
 
 using namespace std;
 
@@ -30,8 +28,6 @@ void * run_challenge(void *composite_number_void){
     char *composite_number_char;
     composite_number_char=(char*)composite_number_void;
 
-    char *buffer;
-    buffer = (char *)malloc(9999*sizeof(char));
     FILE *fp;
 
     char filename[1000];
@@ -47,7 +43,7 @@ void * run_challenge(void *composite_number_void){
         buffer[i]=c;
         i++;
     }
-    return (void*) buffer;
+
 }
 
 void * getcpu(void *pVoid){
@@ -76,6 +72,8 @@ void * getcpu(void *pVoid){
     fclose(output_cpu);
 }
 
+
+unsigned int proc_mem, virtual_proc_mem;
 void * getmem(void *pVoid){
     int pid = 0;
     while(pid==0){
@@ -84,7 +82,7 @@ void * getmem(void *pVoid){
 
     usleep(500);
 
-    unsigned int proc_mem, virtual_proc_mem;
+
     proc_mem= get_proc_mem(pid);
     printf("proc_mem = %d\n", proc_mem);
 
@@ -116,9 +114,8 @@ void * get_execurtion_timne(void *pVoid){
 
 
 //socket ref: https://www.cnblogs.com/zkfopen/p/9441264.html
-bool client_send(const char *ip, int port, FILE *filepath_to_send){
+bool client_send(const char *ip, int port, char *buffer_to_send){
     int   sockfd, n;
-    char  recvline[4096], sendline[4096];
     struct sockaddr_in  servaddr;
 
     if( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
@@ -139,8 +136,8 @@ bool client_send(const char *ip, int port, FILE *filepath_to_send){
         return false;
     }
 
-    fgets(sendline, 4096, stdin);
-    if( send(sockfd, sendline, strlen(sendline), 0) < 0){
+
+    if( send(sockfd, buffer_to_send, strlen(buffer_to_send), 0) < 0){
         printf("send msg error: %s(errno: %d)\n", strerror(errno), errno);
         return false;
     }
@@ -270,6 +267,13 @@ int main(int argc, char **argv) {
     printf("average cpu usage: %f\n", previous_cpu_average);
     printf("execution time 10e-6 seconds: %ld\n", execution_time);
 
+
+    char buffer1[3000];
+    sprintf(buffer1,"%s\n*\nVMSIZE= %d\nRSS= %d\nCPU_usage= %f\nexecurtion_time(10e-6s)= %ld\n@",buffer,virtual_proc_mem,proc_mem,previous_cpu_average,execution_time);
+
+
+    bool send_data=client_send(argv[1],4321,buffer1);
+    printf("send back: %s\n",btoa(send_data));
 
     return 0;
 }
