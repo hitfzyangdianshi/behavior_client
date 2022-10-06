@@ -65,7 +65,7 @@ void * getcpu(void *pVoid){
 
 
     char pid_path[64]={0};
-    sprintf(pid_path,"/proc/%d/stat",pid);
+    sprintf(pid_path,"/proc/%d/stat",pid);average cpu usage
     double proc_cpu;
 
 
@@ -255,6 +255,7 @@ int main(int argc, char **argv) {
     }
 
     printf("average cpu usage: %f\n", previous_cpu_average);
+    printf("execution_time: %ld\n", execution_time);
 
 
     char buffer1[3000];
