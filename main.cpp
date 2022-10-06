@@ -65,13 +65,8 @@ void * getcpu(void *pVoid){
 
 
     char pid_path[64]={0};
-    sprintf(pid_path,"/proc/%d/stat",pid);average cpu usage
+    sprintf(pid_path,"/proc/%d/stat",pid);
     double proc_cpu;
-
-
-
-
-
 
 
     while(true){
