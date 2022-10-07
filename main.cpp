@@ -110,7 +110,7 @@ void * getcpu(void *pVoid){
             printf("get_cpu ends\n");
             break;
         }
-        proc_cpu = get_proc_cpu(pid);
+        proc_cpu = get_proc_cpu(pid,5000);
 
         if(proc_cpu<=100){
             fprintf(output_cpu,"%f\n",proc_cpu);
@@ -256,7 +256,7 @@ int main(int argc, char **argv) {
         }
     }
     FILE* usage_out1 = fopen("usage_2_out.txt", "a");
-    fprintf(usage_out1, "%d,%d,%f\n", cpupercentage, memory2, realtime);
+    fprintf(usage_out1, "%d,%d,%.2f\n", cpupercentage, memory2, realtime);
 
 
     return 0;
