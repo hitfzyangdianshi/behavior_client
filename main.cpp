@@ -65,13 +65,8 @@ void * getcpu(void *pVoid){
 
 
     char pid_path[64]={0};
-    sprintf(pid_path,"/proc/%d/stat",pid);average cpu usage
+    sprintf(pid_path,"/proc/%d/stat",pid);
     double proc_cpu;
-
-
-
-
-
 
 
     while(true){
@@ -80,7 +75,7 @@ void * getcpu(void *pVoid){
             printf("get_cpu ends\n");
             break;
         }
-        proc_cpu = get_proc_cpu(pid);
+        proc_cpu = get_proc_cpu(pid, 5000);
 
         if(proc_cpu<=100){
             fprintf(output_cpu,"%f\n",proc_cpu);
@@ -114,7 +109,7 @@ void * getmem(void *pVoid){
 }
 
 
-void * get_execurtion_timne(void *pVoid){
+void * get_execurtion_time(void *pVoid){
     int pid = 0;
     while(pid==0){
         pid = get_pid("DPI_challenge");
@@ -233,7 +228,7 @@ int main(int argc, char **argv) {
     pthread_create(&thread_challenge,NULL, run_challenge,NULL);
     pthread_create(&thread_getcpu, NULL, getcpu, NULL );
     pthread_create(&thread_getmem, NULL, getmem, NULL );
-    pthread_create(&thread_execurtion_time,NULL,get_execurtion_timne,NULL);
+    pthread_create(&thread_execurtion_time,NULL,get_execurtion_time,NULL);
 
     pthread_join(thread_challenge, NULL);
     pthread_join(thread_getcpu, NULL);
