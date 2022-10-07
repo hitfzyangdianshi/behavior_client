@@ -85,7 +85,7 @@ unsigned long get_cpu_proc_occupy(unsigned int pid){
 
 
 //获取CPU占用率    get CPU utilization
-float get_proc_cpu(unsigned int pid) {
+float get_proc_cpu(unsigned int pid, __useconds_t sleep_us) {
 
     unsigned long totalcputime1, totalcputime2;
     unsigned long procputime1, procputime2;
@@ -93,7 +93,7 @@ float get_proc_cpu(unsigned int pid) {
     totalcputime1 = get_cpu_total_occupy();
     procputime1 = get_cpu_proc_occupy(pid);
 
-    usleep(20000);
+    usleep(sleep_us);
 
     totalcputime2 = get_cpu_total_occupy();
     procputime2 = get_cpu_proc_occupy(pid);

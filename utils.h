@@ -51,7 +51,7 @@ typedef struct {
 
 
 //获取CPU占用率    get CPU utilization
-float get_proc_cpu(unsigned int pid);
+float get_proc_cpu(unsigned int pid, __useconds_t sleep_us=20000);
 
 //获取进程占用内存    get process memory usage
 unsigned int get_proc_mem(unsigned int pid);

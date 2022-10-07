@@ -21,8 +21,43 @@ struct timeval tv1, tv2;
 
 char buffer[2000];
 
-char composite_number[1000];
+char composite_number[]="77785099991111111111111111111111112222222222222222222222999999999999999999999999999999990000000000000000000009999999999999999999999999999999999999999999999999999999";
 
+
+// using /usr/bin/time
+void get_execurtion_info(char *composite_number_char){
+
+    char filename[1000];
+    sprintf(filename,"../../DPI_challenge/cmake-build-debug/DPI_challenge %s",composite_number_char);
+
+    char _usr_bin_time[]=R"(/usr/bin/time -f "\n*\nrealtime %e\nmemory_kb %M\ncpu %P\n@"  2>&1)";
+
+    char _usr_bin_time_command[1300];
+    sprintf(_usr_bin_time_command, "%s %s",_usr_bin_time,filename);
+
+    FILE *fp;
+    fp= popen(_usr_bin_time_command,"r");
+
+    char c;
+    int i=0;
+    while ( (c=fgetc(fp))!=EOF ){
+        buffer[i]=c;
+        if(buffer[i]=='@')break;
+        i++;
+        if(i>=2000)break;
+    }
+
+    pclose(fp);
+}
+
+
+
+
+
+
+
+
+// using utils.cpp
 void * run_challenge(void *pVoid){
 
     FILE *fp;
@@ -109,7 +144,7 @@ void * getmem(void *pVoid){
 }
 
 
-void * get_execurtion_timne(void *pVoid){
+void * get_execurtion_time(void *pVoid){
     int pid = 0;
     while(pid==0){
         pid = get_pid("DPI_challenge");
@@ -126,85 +161,6 @@ void * get_execurtion_timne(void *pVoid){
 
 
 
-//socket ref: https://www.cnblogs.com/zkfopen/p/9441264.html
-bool client_send(const char *ip, int port, char *buffer_to_send){
-    int   sockfd, n;
-    struct sockaddr_in  servaddr;
-
-    if( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
-        printf("create socket error: %s(errno: %d)\n", strerror(errno),errno);
-        return false;
-    }
-
-    memset(&servaddr, 0, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(port);
-    if( inet_pton(AF_INET, ip, &servaddr.sin_addr) <= 0){
-        printf("inet_pton error for %s\n",ip);
-        return false;
-    }
-
-    if( connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0){
-        printf("connect error: %s(errno: %d)\n",strerror(errno),errno);
-        return false;
-    }
-
-
-    if( send(sockfd, buffer_to_send, strlen(buffer_to_send), 0) < 0){
-        printf("send msg error: %s(errno: %d)\n", strerror(errno), errno);
-        return false;
-    }
-
-    close(sockfd);
-    return true;
-}
-
-void client_receiver(int port){
-    int  listenfd, connfd,             n;
-    struct sockaddr_in  servaddr;
-
-    if( (listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1 ){
-        printf("create socket error: %s(errno: %d)\n",strerror(errno),errno);
-        return ;
-    }
-
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    servaddr.sin_port = htons(port);
-
-    if( bind(listenfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) == -1){
-        printf("bind socket error: %s(errno: %d)\n",strerror(errno),errno);
-        return ;
-    }
-
-    if( listen(listenfd, 10) == -1) {
-        printf("listen socket error: %s(errno: %d)\n", strerror(errno), errno);
-        return ;
-    }
-
-
-
-    struct sockaddr_in addr_client;
-    unsigned int len = sizeof(sockaddr_in);
-
-
-    printf("====== waiting for composite_number ======\n");
-
-    if ( (connfd = accept(listenfd, ((sockaddr *) &addr_client), &len)) == -1){
-        printf("accept socket error: %s(errno: %d)",strerror(errno),errno);
-        return ;
-    }
-
-    n=recv(connfd, composite_number, 9999, 0);
-    composite_number[n] = '\0';
-    printf("receive composite_number[%d]: %s\n", n, composite_number);
-    //for(int i=0;i<9999;i++)printf("%c",received_composite_number[i]);
-
-    printf("accept ip address: %s\n", inet_ntoa(addr_client.sin_addr) );
-
-    close(listenfd);
-    close(connfd);
-}
 
 
 
@@ -214,7 +170,7 @@ int main(int argc, char **argv) {
 
     memset(buffer,'\0',sizeof(char)*2000);
 
-    client_receiver(4321);
+
 
 
 
@@ -228,7 +184,7 @@ int main(int argc, char **argv) {
     pthread_create(&thread_challenge,NULL, run_challenge,NULL);
     pthread_create(&thread_getcpu, NULL, getcpu, NULL );
     pthread_create(&thread_getmem, NULL, getmem, NULL );
-    pthread_create(&thread_execurtion_time,NULL,get_execurtion_timne,NULL);
+    pthread_create(&thread_execurtion_time,NULL,get_execurtion_time,NULL);
 
     pthread_join(thread_challenge, NULL);
     pthread_join(thread_getcpu, NULL);
@@ -253,12 +209,55 @@ int main(int argc, char **argv) {
     printf("execution_time: %ld\n", execution_time);
 
 
-    char buffer1[3000];
-    sprintf(buffer1,"%s\n*\nVMSIZE= %d\nRSS= %d\nCPU_usage= %f\nexecurtion_time(10e-6s)= %ld\n@",buffer,virtual_proc_mem,proc_mem,previous_cpu_average,execution_time);
+    //char buffer1[3000];
+    //sprintf(buffer1,"%s\n*\nVMSIZE= %d\nRSS= %d\nCPU_usage= %f\nexecurtion_time(10e-6s)= %ld\n@",buffer,virtual_proc_mem,proc_mem,previous_cpu_average,execution_time);
+
+    FILE* usage_out = fopen("usage_sample_out.txt", "a");
+    fprintf(usage_out, "%f,%d,%d,%ld\n", previous_cpu_average, virtual_proc_mem, proc_mem, execution_time);
+    fclose(usage_out);
 
 
-    bool send_data=client_send(argv[1],4321,buffer1);
-    printf("send back: %s\n",btoa(send_data));
+    /***************************************************/
+    memset(buffer,'\0',sizeof(char)*2000);
+    get_execurtion_info(composite_number);
+
+    FILE* write_output2 = fopen("reveive output2 out.txt", "w");
+
+    for(int i=0;i<2000;i++){
+        if( buffer[i]!='\0' && buffer[i]!='@')
+        {
+            printf("%c",buffer[i]);
+            fprintf(write_output2,"%c",buffer[i]);
+        }
+        else {
+            buffer[i]='\0';
+            break;
+        }
+    }
+    printf("\n");
+    fclose(write_output2);
+
+
+    FILE* read_output2 = fopen("reveive output2 out.txt", "r");
+    char received_line[200];
+    int memory2, cpupercentage;
+    float realtime;
+    for (int i = 1; i <= 26; i++) {
+        if (i >= 1 && i <= 21) {
+            fscanf(read_output2, "%s", received_line);
+        } else if (i == 22) {
+            fscanf(read_output2, "%s %f", received_line, &realtime);
+        } else if (i == 23) {
+            fscanf(read_output2, "%s %d", received_line, &memory2);
+        } else if (i == 24) {
+            fscanf(read_output2, "%s %d%%", received_line, &cpupercentage);
+        } else {
+            break;
+        }
+    }
+    FILE* usage_out1 = fopen("usage_2_out.txt", "a");
+    fprintf(usage_out1, "%d,%d,%f\n", cpupercentage, memory2, realtime);
+
 
     return 0;
 }
