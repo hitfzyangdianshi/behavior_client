@@ -126,7 +126,6 @@ void * get_execurtion_time(void *pVoid){
 
 
 
-//socket ref: https://www.cnblogs.com/zkfopen/p/9441264.html
 bool client_send(const char *ip, int port, char *buffer_to_send){
     int   sockfd, n;
     struct sockaddr_in  servaddr;
