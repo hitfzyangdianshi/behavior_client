@@ -6,7 +6,7 @@
 
 using namespace std;
 
-//ref : https://blog.csdn.net/whatday/article/details/111595919
+
 //获取第N项开始的指针 get the pointer to the start of the Nth item
 const char* get_items(const char*buffer ,unsigned int item){
 

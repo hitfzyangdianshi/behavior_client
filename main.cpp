@@ -21,7 +21,7 @@ struct timeval tv1, tv2;
 
 char buffer[2000];
 
-char composite_number[]="77785099991111111111111111111111112222222222222222222222999999999999999999999999999999990000000000000000000009999999999999999999999999999999999999999999999999999999";
+char composite_number[]="7778501398155158234329379851044392495981905731517000759689894061796959608753311502695149989403990224884679160908258491144655036429101337708614572719695328785370318152304469318400616849954";
 
 
 // using /usr/bin/time
@@ -159,9 +159,41 @@ void * get_execurtion_time(void *pVoid){
 }
 
 
+/*
+#include <sys/ptrace.h>
+#include <sys/wait.h>
+#include <sys/reg.h>
+void* using_ptrace(void *pVoid){
+    long orig_eax, eax, ebx;
+    pid_t pid_c=0;
+    while(pid_c==0){
+        pid_c = get_pid("DPI_challenge");
+    }
 
+    orig_eax = ptrace(PTRACE_PEEKUSER, pid_c, ORIG_RAX<<2, NULL);
+    eax = ptrace(PTRACE_PEEKUSER, pid_c, RAX<<2, NULL);
+    ebx = ptrace(PTRACE_PEEKUSER, pid_c, RBX<<2, NULL);
 
+    printf("ORIG_EAX = %d,        EAX = %d,        EBX = %d\n", orig_eax, eax, ebx);
 
+    ptrace(PTRACE_SYSCALL, pid_c, NULL, NULL);
+
+}
+*/
+
+void* using_strace(void *pVoid){
+    pid_t pid_c=0;
+    while(pid_c==0){
+        pid_c = get_pid("DPI_challenge");
+    }
+    char cm[1000];
+    sprintf(cm,"sudo strace -p %d ",pid_c);
+
+    FILE *fp;
+    fp= popen(cm,"r");
+
+    fclose(fp);
+}
 
 
 
@@ -178,6 +210,7 @@ int main(int argc, char **argv) {
     pthread_t thread_getcpu;
     pthread_t thread_getmem;
     pthread_t thread_execurtion_time;
+    pthread_t thread_strace;
 
 
 
@@ -185,11 +218,13 @@ int main(int argc, char **argv) {
     pthread_create(&thread_getcpu, NULL, getcpu, NULL );
     pthread_create(&thread_getmem, NULL, getmem, NULL );
     pthread_create(&thread_execurtion_time,NULL,get_execurtion_time,NULL);
+    pthread_create(&thread_strace,NULL,using_strace, NULL);
 
     pthread_join(thread_challenge, NULL);
     pthread_join(thread_getcpu, NULL);
     pthread_join(thread_getmem, NULL);
     pthread_join(thread_execurtion_time,NULL);
+    pthread_join(thread_strace, NULL);
 
 
     printf("pthread ends . \n");
