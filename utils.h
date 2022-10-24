@@ -7,7 +7,7 @@
 
 #define HAVE_NULLPTR // remove this if you do not have nullptr in g++
 
-#ifndef HAVE_NULLPTR
+#if (!defined (HAVE_NULLPTR )) || (__GNUC__<=4 )
 #if defined(_WIN64)
 # define nullptr 0LL
 #elif defined(__GNUC__)
