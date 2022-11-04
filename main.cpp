@@ -147,41 +147,6 @@ void * get_execurtion_time(void *pVoid){
 
 
 
-#if 0
-bool client_send(const char *ip, int port, char *buffer_to_send){
-    int   sockfd, n;
-    struct sockaddr_in  servaddr;
-
-    if( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
-        printf("create socket error: %s(errno: %d)\n", strerror(errno),errno);
-        return false;
-    }
-
-    memset(&servaddr, 0, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(port);
-    if( inet_pton(AF_INET, ip, &servaddr.sin_addr) <= 0){
-        printf("inet_pton error for %s\n",ip);
-        return false;
-    }
-
-    if( connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0){
-        printf("connect error: %s(errno: %d)\n",strerror(errno),errno);
-        return false;
-    }
-
-
-    if( send(sockfd, buffer_to_send, strlen(buffer_to_send), 0) < 0){
-        printf("send msg error: %s(errno: %d)\n", strerror(errno), errno);
-        return false;
-    }
-
-    close(sockfd);
-    return true;
-}
-#endif
-
-
 char accepted_server_address[30];
 
 int client_receiver(int port) {
@@ -211,30 +176,6 @@ int client_receiver(int port) {
 }
 
 
-#if 0
-    struct sockaddr_in addr_client;
-    unsigned int len = sizeof(sockaddr_in);
-
-
-    printf("====== waiting for composite_number ======\n");
-
-    if ( (connfd = accept(listenfd, ((sockaddr *) &addr_client), &len)) == -1){
-        printf("accept socket error: %s(errno: %d)",strerror(errno),errno);
-        return -1;
-    }
-
-    n=recv(connfd, composite_number, 9999, 0);
-    composite_number[n] = '\0';
-    printf("receive composite_number[%d]: %s\n", n, composite_number);
-    //for(int i=0;i<9999;i++)printf("%c",received_composite_number[i]);
-
-    printf("accept ip address: %s\n", inet_ntoa(addr_client.sin_addr) );
-    sprintf(accepted_server_address,"%s",inet_ntoa(addr_client.sin_addr));
-
-    close(listenfd);
-    close(connfd);
-}
-#endif
 
 int ptrace_count[1000000];
 char ptrace_send[100000];
@@ -325,10 +266,10 @@ void using_ptrace_ubuntu64(){
 
     char ptrace_line[20];
 
-    for(int i=0;i<1000000;i++){
+    for(long i=0;i<1000000;i++){
         if(ptrace_count[i]>0){
-            printf("%d\t%d\n", i, ptrace_count[i]);
-            sprintf(ptrace_line,"%d\t%d\n", i, ptrace_count[i]);
+            printf("%ld\t%d\n", i, ptrace_count[i]);
+            sprintf(ptrace_line,"%ld\t%d\n", i, ptrace_count[i]);
             strcat(ptrace_send,ptrace_line);
         }
     }
@@ -416,16 +357,6 @@ int main(int argc, char **argv) {
          //   SSL_write(ssl, reply, strlen(reply));
         }
 
-#if 0
-        int n=recv(sock_in, composite_number, 9999, 0);
-        composite_number[n] = '\0';
-        printf("receive composite_number[%d]: %s\n", n, composite_number);
-        //for(int i=0;i<9999;i++)printf("%c",received_composite_number[i]);
-
-        printf("accept ip address: %s\n", inet_ntoa(addr_client.sin_addr) );
-        sprintf(accepted_server_address,"%s",inet_ntoa(addr_client.sin_addr));
-#endif
-
 
 
 
@@ -468,7 +399,6 @@ int main(int argc, char **argv) {
                 virtual_proc_mem, proc_mem, previous_cpu_average, execution_time);
 
 
-      //  bool send_data = client_send(argv[1], 4321, buffer1);
 
 
 
