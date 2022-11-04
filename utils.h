@@ -61,6 +61,6 @@ unsigned int get_proc_mem(unsigned int pid);
 unsigned int get_proc_virtualmem(unsigned int pid);
 
 //进程本身 get PID
-int get_pid(const char* process_name, const char* user = nullptr);
+int get_pid(const char* process_name, const char* user = NULL);
 
 #endif //UTILS_H

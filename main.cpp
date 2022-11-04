@@ -1,15 +1,31 @@
 #include <unistd.h>
 #include <bits/stdc++.h>
 
-#include<cerrno>
 #include<sys/types.h>
+#include <sys/user.h>
+#include <sys/wait.h>
+
 #include<sys/socket.h>
 #include<netinet/in.h>
 #include<arpa/inet.h>
 
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+
+#include <syscall.h>
+#include <sys/ptrace.h>
+
 #include "utils.h"
 
 #define btoa(x) ((x)?"true":"false")
+
+#define FATAL(...) \
+    do { \
+        fprintf(stderr, "STrace: " __VA_ARGS__); \
+        fputc('\n', stderr); \
+        exit(EXIT_FAILURE); \
+    } while (0)
+
 
 using namespace std;
 
@@ -19,18 +35,19 @@ struct timeval tv1, tv2;
 //char composite_number[]="777850139815515823432937985104439249598190573151700075968989406179695960875331150269514998940399022488467916090825849114465503642910133770861457271969532878537031815230446931840061684995416357349745183381771279860684246236778849474628625674942902795509939309916363937745442241024561396926537841449463846747213991413648112534401838116568615587203457359448034002605339982599140780190821876471767613135357674";
 
 
-char buffer[2000];
+char buffer[40000];
 
 char composite_number[1000];
+
+char filename[1500];
 
 void * run_challenge(void *pVoid){
 
     FILE *fp;
 
-    char filename[1000];
     sprintf(filename,"../../DPI_challenge/cmake-build-debug/DPI_challenge %s",composite_number);
 
-
+    memset(buffer,'\0',sizeof(char)*40000);
 
     fp= popen(filename,"r");
 
@@ -45,7 +62,7 @@ void * run_challenge(void *pVoid){
     }
     buffer[i]='\0';
 
-    for( i=0;i<2000;i++){
+    for( i=0;i<40000;i++){
         if( buffer[i]!='\0')    printf("%c",buffer[i]);
         else break;
     }
@@ -126,7 +143,11 @@ void * get_execurtion_time(void *pVoid){
 
 
 
-//socket ref: https://www.cnblogs.com/zkfopen/p/9441264.html
+
+
+
+
+#if 0
 bool client_send(const char *ip, int port, char *buffer_to_send){
     int   sockfd, n;
     struct sockaddr_in  servaddr;
@@ -158,32 +179,39 @@ bool client_send(const char *ip, int port, char *buffer_to_send){
     close(sockfd);
     return true;
 }
+#endif
 
-void client_receiver(int port){
-    int  listenfd, connfd,             n;
-    struct sockaddr_in  servaddr;
 
-    if( (listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1 ){
-        printf("create socket error: %s(errno: %d)\n",strerror(errno),errno);
-        return ;
+char accepted_server_address[30];
+
+int client_receiver(int port) {
+    int listenfd, connfd, n;
+    struct sockaddr_in servaddr;
+
+    if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+        printf("create socket error: %s(errno: %d)\n", strerror(errno), errno);
+        return -1;
     }
 
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
     servaddr.sin_port = htons(port);
 
-    if( bind(listenfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) == -1){
-        printf("bind socket error: %s(errno: %d)\n",strerror(errno),errno);
-        return ;
+    if (bind(listenfd, (struct sockaddr *) &servaddr, sizeof(servaddr)) == -1) {
+        printf("bind socket error: %s(errno: %d)\n", strerror(errno), errno);
+        return -1;
     }
 
-    if( listen(listenfd, 10) == -1) {
+    if (listen(listenfd, 10) == -1) {
         printf("listen socket error: %s(errno: %d)\n", strerror(errno), errno);
-        return ;
+        return -1;
     }
 
+    return listenfd;
+}
 
 
+#if 0
     struct sockaddr_in addr_client;
     unsigned int len = sizeof(sockaddr_in);
 
@@ -192,7 +220,7 @@ void client_receiver(int port){
 
     if ( (connfd = accept(listenfd, ((sockaddr *) &addr_client), &len)) == -1){
         printf("accept socket error: %s(errno: %d)",strerror(errno),errno);
-        return ;
+        return -1;
     }
 
     n=recv(connfd, composite_number, 9999, 0);
@@ -201,64 +229,284 @@ void client_receiver(int port){
     //for(int i=0;i<9999;i++)printf("%c",received_composite_number[i]);
 
     printf("accept ip address: %s\n", inet_ntoa(addr_client.sin_addr) );
+    sprintf(accepted_server_address,"%s",inet_ntoa(addr_client.sin_addr));
 
     close(listenfd);
     close(connfd);
 }
+#endif
+
+int ptrace_count[1000000];
+char ptrace_send[100000];
+void using_ptrace_ubuntu64(){
+    memset(ptrace_count,0,sizeof(ptrace_count[0])*1000000);
+    memset(ptrace_send,'\0',sizeof(ptrace_send[0])*100000);
+
+    pid_t pid = fork();
+
+    switch (pid) {
+        case -1: /* error */
+            FATAL("%s", strerror(errno));
+        case 0:  /* child */
+            ptrace(PTRACE_TRACEME, 0, 0, 0);
+            /* Because we're now a tracee, execvp will block until the parent
+             * attaches and allows us to continue. */
+            char challenge_path[]="../../DPI_challenge/cmake-build-debug/DPI_challenge";
+            char *args[]={challenge_path,composite_number, NULL};
+            execvp(challenge_path,args);
+            FATAL("%s", strerror(errno));
+    }
+
+    /* parent */
+    waitpid(pid, 0, 0); // sync with execvp
+    ptrace(PTRACE_SETOPTIONS, pid, 0, PTRACE_O_EXITKILL);
+
+    for (;;) {
+        /* Enter next system call */
+        if (ptrace(PTRACE_SYSCALL, pid, 0, 0) == -1)
+            FATAL("%s", strerror(errno));
+        if (waitpid(pid, 0, 0) == -1)
+            FATAL("%s", strerror(errno));
+
+        /* Gather system call arguments */
+        struct user_regs_struct regs;
+        if (ptrace(PTRACE_GETREGS, pid, 0, &regs) == -1)
+            FATAL("%s", strerror(errno));
 
 
+
+        long syscall_ = (long)regs.orig_rax;
+
+        /* Print a representation of the system call */
+        // if(syscall_!=-1)
+        fprintf(stderr, "%ld(%ld, %ld, %ld, %ld, %ld, %ld)",
+                syscall_,
+                (long)regs.rdi, (long)regs.rsi, (long)regs.rdx,
+                (long)regs.r10, (long)regs.r8,  (long)regs.r9);
+
+
+        /* Run system call and stop on exit */
+        if (ptrace(PTRACE_SYSCALL, pid, 0, 0) == -1)
+            FATAL("%s", strerror(errno));
+        if (waitpid(pid, 0, 0) == -1)
+            FATAL("%s", strerror(errno));
+
+        /* Get system call result */
+        if (ptrace(PTRACE_GETREGS, pid, 0, &regs) == -1) {
+
+            // fputs(" = ?\n", stderr);
+            if (errno == ESRCH && !(syscall_ == SYS_exit || syscall_ == SYS_exit_group))
+                exit(regs.rdi); // system call was _exit(2) or similar
+            if(!(syscall_ == SYS_exit || syscall_ == SYS_exit_group))
+                FATAL("%s", strerror(errno));
+        }
+
+        /* Print system call result */
+        fprintf(stderr, " = %ld\n", (long)regs.rax);
+        if(syscall_!=-1) {
+            ptrace_count[syscall_]++;
+        }
+
+        if(syscall_ == -1){
+            fprintf(stderr, "[ERROR] orig_rax is -1\n");
+            exit(EXIT_FAILURE);
+            break;
+        }
+        else if(syscall_ == SYS_exit || syscall_ == SYS_exit_group){
+            if((long)regs.rdi==0) {
+                break;
+            }
+            else{
+                fprintf(stderr, "[INFO] challenge exit code is %ld\n",(long)regs.rdi);
+                break;
+            }
+        }
+    }
+
+    char ptrace_line[20];
+
+    for(int i=0;i<1000000;i++){
+        if(ptrace_count[i]>0){
+            printf("%d\t%d\n", i, ptrace_count[i]);
+            sprintf(ptrace_line,"%d\t%d\n", i, ptrace_count[i]);
+            strcat(ptrace_send,ptrace_line);
+        }
+    }
+}
 
 
 int main(int argc, char **argv) {
 
 
-    memset(buffer,'\0',sizeof(char)*2000);
 
-    client_receiver(4321);
+    SSL_CTX* ctx;
 
-
-
-    pthread_t thread_challenge;
-    pthread_t thread_getcpu;
-    pthread_t thread_getmem;
-    pthread_t thread_execurtion_time;
-
-
-
-    pthread_create(&thread_challenge,NULL, run_challenge,NULL);
-    pthread_create(&thread_getcpu, NULL, getcpu, NULL );
-    pthread_create(&thread_getmem, NULL, getmem, NULL );
-    pthread_create(&thread_execurtion_time,NULL,get_execurtion_time,NULL);
-
-    pthread_join(thread_challenge, NULL);
-    pthread_join(thread_getcpu, NULL);
-    pthread_join(thread_getmem, NULL);
-    pthread_join(thread_execurtion_time,NULL);
-
-
-    printf("pthread ends . \n");
-
-
-
-    FILE *cpu_txt=fopen("output_cpu.txt","r");
-    double previous_cpu_average=0, current_cpu;
-    for(int i=1;;i++){
-        if(fscanf(cpu_txt,"%lf",&current_cpu)==EOF){
-            break;
-        }
-        previous_cpu_average=(previous_cpu_average*(i-1)+current_cpu)/((double)i);
+    ctx = SSL_CTX_new(TLS_server_method());
+    if (!ctx) {
+        perror("Unable to create SSL context");
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
     }
 
-    printf("average cpu usage: %f\n", previous_cpu_average);
-    printf("execution_time: %ld\n", execution_time);
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
+
+    if (SSL_CTX_load_verify_locations(ctx, "../keys/cacert.pem", NULL) != 1) {
+        fprintf(stderr, "SSL_CTX_load_verify_locations ");
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    if (SSL_CTX_use_certificate_file(ctx, "../keys/clientcert.pem", SSL_FILETYPE_PEM) <= 0) {
+        fprintf(stderr, "SSL_CTX_use_certificate_file ");
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    if (SSL_CTX_use_PrivateKey_file(ctx, "../keys/clientkey.pem", SSL_FILETYPE_PEM) <= 0) {
+        fprintf(stderr, "SSL_CTX_use_PrivateKey_file ");
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    if (SSL_CTX_check_private_key(ctx) != 1) {
+        perror("SSL_CTX_check_private_key failed");
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    SSL_CTX_set_mode(ctx, SSL_MODE_AUTO_RETRY);
 
 
-    char buffer1[3000];
-    sprintf(buffer1,"%s\n*\nVMSIZE= %d\nRSS= %d\nCPU_usage= %f\nexecurtion_time(10e-6s)= %ld\n@",buffer,virtual_proc_mem,proc_mem,previous_cpu_average,execution_time);
+    int sock_in, client;
+    sock_in=client_receiver(4321);
 
 
-    bool send_data=client_send(argv[1],4321,buffer1);
-    printf("send back: %s\n",btoa(send_data));
+
+    while(1) {
+
+
+        /*socket in*/
+        struct sockaddr_in addr_client;
+        unsigned int len = sizeof(sockaddr_in);
+
+        SSL* ssl;
+
+        printf("====== waiting for composite_number ======\n");
+
+        if ( (client = accept(sock_in, ((sockaddr *) &addr_client), &len)) == -1){
+            printf("accept socket error: %s(errno: %d)",strerror(errno),errno);
+            break;
+        }
+
+        ssl = SSL_new(ctx);
+        if (ssl == NULL) {
+            perror("SSL_new error ");
+            break;
+        }
+
+        SSL_set_fd(ssl, client);
+
+        if (SSL_accept(ssl) <= 0) {
+            ERR_print_errors_fp(stderr);
+            break;
+        }
+        else {
+            SSL_read(ssl, composite_number, sizeof(composite_number[0]) * 1000);
+            cout << composite_number << endl;
+         //   SSL_write(ssl, reply, strlen(reply));
+        }
+
+#if 0
+        int n=recv(sock_in, composite_number, 9999, 0);
+        composite_number[n] = '\0';
+        printf("receive composite_number[%d]: %s\n", n, composite_number);
+        //for(int i=0;i<9999;i++)printf("%c",received_composite_number[i]);
+
+        printf("accept ip address: %s\n", inet_ntoa(addr_client.sin_addr) );
+        sprintf(accepted_server_address,"%s",inet_ntoa(addr_client.sin_addr));
+#endif
+
+
+
+
+        pthread_t thread_challenge;
+        pthread_t thread_getcpu;
+        pthread_t thread_getmem;
+        pthread_t thread_execurtion_time;
+
+
+        pthread_create(&thread_challenge, NULL, run_challenge, NULL);
+        pthread_create(&thread_getcpu, NULL, getcpu, NULL);
+        pthread_create(&thread_getmem, NULL, getmem, NULL);
+        pthread_create(&thread_execurtion_time, NULL, get_execurtion_time, NULL);
+
+        pthread_join(thread_challenge, NULL);
+        pthread_join(thread_getcpu, NULL);
+        pthread_join(thread_getmem, NULL);
+        pthread_join(thread_execurtion_time, NULL);
+
+
+        printf("pthread ends . \n");
+
+
+        FILE *cpu_txt = fopen("output_cpu.txt", "r");
+        double previous_cpu_average = 0, current_cpu;
+        for (int i = 1;; i++) {
+            if (fscanf(cpu_txt, "%lf", &current_cpu) == EOF) {
+                break;
+            }
+            previous_cpu_average = (previous_cpu_average * (i - 1) + current_cpu) / ((double) i);
+        }
+
+        printf("average cpu usage: %f\n", previous_cpu_average);
+        printf("execution_time: %ld\n", execution_time);
+
+
+        char buffer_sendback1[41000]; //challenge result + measurement
+        memset(buffer_sendback1,'\0',sizeof(buffer_sendback1[0])*41000);
+        sprintf(buffer_sendback1, "%s\n*\nVMSIZE= %d\nRSS= %d\nCPU_usage= %f\nexecurtion_time(10e-6s)= %ld\n@\n", buffer,
+                virtual_proc_mem, proc_mem, previous_cpu_average, execution_time);
+
+
+      //  bool send_data = client_send(argv[1], 4321, buffer1);
+
+
+
+
+
+
+        /* ptrace */
+        using_ptrace_ubuntu64();
+
+
+
+
+
+
+        /*send*/
+        int ssl_write_result;
+
+        char buffer_send_all[141000];
+        memset(buffer_send_all,'\0',sizeof(buffer_send_all[0])*141000);
+        strcat(buffer_send_all,buffer_sendback1);
+        strcat(buffer_send_all,ptrace_send);
+
+        ssl_write_result = SSL_write(ssl, buffer_send_all, 141000);
+
+        printf("send back: %d\n", ssl_write_result);
+
+
+
+    }
+
+
+
+
+
+
+    close(client);
+    close(sock_in);
+    SSL_CTX_free(ctx);
 
     return 0;
 }

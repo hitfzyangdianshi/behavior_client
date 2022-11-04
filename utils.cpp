@@ -6,7 +6,7 @@
 
 using namespace std;
 
-//ref : https://blog.csdn.net/whatday/article/details/111595919
+
 //获取第N项开始的指针 get the pointer to the start of the Nth item
 const char* get_items(const char*buffer ,unsigned int item){
 
@@ -39,7 +39,7 @@ unsigned long get_cpu_total_occupy(){
     Total_Cpu_Occupy_t t;
 
     fd =fopen("/proc/stat","r");
-    if (nullptr == fd){
+    if (NULL == fd){
         return 0;
     }
 
@@ -65,7 +65,7 @@ unsigned long get_cpu_proc_occupy(unsigned int pid){
     sprintf(file_name,"/proc/%d/stat",pid);
 
     fd = fopen(file_name,"r");
-    if(nullptr == fd){
+    if(NULL == fd){
         return 0;
     }
 
@@ -118,7 +118,7 @@ unsigned int get_proc_mem(unsigned int pid){
     sprintf(file_name,"/proc/%d/status",pid);
 
     fd =fopen(file_name,"r");
-    if(nullptr == fd){
+    if(NULL == fd){
         return 0;
     }
 
@@ -151,7 +151,7 @@ unsigned int get_proc_virtualmem(unsigned int pid){
     sprintf(file_name,"/proc/%d/status",pid);
 
     fd =fopen(file_name,"r");
-    if(nullptr == fd){
+    if(NULL == fd){
         return 0;
     }
 
@@ -176,7 +176,7 @@ unsigned int get_proc_virtualmem(unsigned int pid){
 //进程本身 get PID
 int get_pid(const char* process_name, const char* user  )
 {
-    if(user == nullptr){
+    if(user == NULL){
         user = getlogin();
     }
 
@@ -187,7 +187,7 @@ int get_pid(const char* process_name, const char* user  )
 
     FILE *pstr = popen(cmd,"r");
 
-    if(pstr == nullptr){
+    if(pstr == NULL){
         return 0;
     }
 
