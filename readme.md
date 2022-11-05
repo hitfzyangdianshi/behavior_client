@@ -8,11 +8,13 @@ add `-lpthread` whe using g++ to compile and build
 the TLS uses openssl-1.1.1q
 
 ## arm64 (test on jetsonTX2)
+```
 g++ main.cpp utils.cpp /home/$USER/openssl/lib/libssl.a  /home/$USER/openssl/lib/libcrypto.a -I/home/$USER/openssl/include -lpthread -ldl
-
+```
 ## Raspberry Pi pi_armv7l_32
+```
 g++ main.cpp utils.cpp /home/$USER/openssl/lib/libssl.a  /home/$USER/openssl/lib/libcrypto.a -I/home/$USER/openssl/include -lpthread -ldl -DRPI
-
+```
 (luckily, this works for g++ version 4.9.2)
 
 ## debug
