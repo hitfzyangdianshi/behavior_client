@@ -1,2 +1,7 @@
 cmake-build-debug
 .idea
+
+*.csr
+*.srl
+*.pem
+*.key

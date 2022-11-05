@@ -9,6 +9,7 @@
 #include<netinet/in.h>
 #include<arpa/inet.h>
 
+// using openssl-1.1.1q
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
@@ -19,15 +20,22 @@
 
 #define btoa(x) ((x)?"true":"false")
 
+#define DEFINE_ON_ARM (defined (__arm__) || defined(__arm64__) || defined(__aarch64__) || defined(RPI) || defined(__Raspberry_PI__) || defined(RASPBERRY_PI) || defined(__ARM_ARCH) )
+#define DEFINE_RPI (defined(RPI) || defined(__Raspberry_PI__) || defined(RASPBERRY_PI)  )
+
 #define FATAL(...) \
     do { \
         fprintf(stderr, "STrace: " __VA_ARGS__); \
         fputc('\n', stderr); \
-        exit(EXIT_FAILURE); \
+        return; \
     } while (0)
 
 
 using namespace std;
+
+
+int port=4321;
+
 
 long execution_time;
 struct timeval tv1, tv2;
@@ -41,11 +49,23 @@ char composite_number[1000];
 
 char filename[1500];
 
+#if !DEFINE_ON_ARM
+#define FILENAME_PATH_S "../../DPI_challenge/cmake-build-debug/DPI_challenge %s"
+#define CACERT "../keys/cacert.pem"
+#define CLIENTCERT "../keys/clientcert.pem"
+#define CLIENTKEY "../keys/clientkey.pem"
+#else
+#define FILENAME_PATH_S "../DPI_challenge-interposition/DPI_challenge %s"
+#define CACERT "keys/cacert.pem"
+#define CLIENTCERT "keys/clientcert.pem"
+#define CLIENTKEY "keys/clientkey.pem"
+#endif
+
 void * run_challenge(void *pVoid){
 
     FILE *fp;
 
-    sprintf(filename,"../../DPI_challenge/cmake-build-debug/DPI_challenge %s",composite_number);
+    sprintf(filename,FILENAME_PATH_S,composite_number);
 
     memset(buffer,'\0',sizeof(char)*40000);
 
@@ -71,8 +91,12 @@ void * run_challenge(void *pVoid){
 
 
 
-
+double cupaverage;
+long cputag;
 void * getcpu(void *pVoid){
+    cupaverage=0;
+    cputag=0;
+
     FILE *output_cpu=fopen("output_cpu.txt","w");
     int pid = 0;
     while(pid==0){
@@ -96,9 +120,20 @@ void * getcpu(void *pVoid){
 
         if(proc_cpu<=100){
             fprintf(output_cpu,"%f\n",proc_cpu);
+            if(cputag==0){
+                cupaverage=proc_cpu;
+                cputag++;
+            }
+            else{
+                cupaverage=cupaverage/(cputag+1);
+                cupaverage=cupaverage*cputag;
+                cupaverage=cupaverage+proc_cpu/(cputag+1);
+                cputag++;
+            }
         }
     }
     fclose(output_cpu);
+    printf("cputag= %ld\n",cputag);
 }
 
 
@@ -179,6 +214,8 @@ int client_receiver(int port) {
 
 int ptrace_count[1000000];
 char ptrace_send[100000];
+#if !DEFINE_ON_ARM
+#define USING_PTRACE() using_ptrace_ubuntu64()
 void using_ptrace_ubuntu64(){
     memset(ptrace_count,0,sizeof(ptrace_count[0])*1000000);
     memset(ptrace_send,'\0',sizeof(ptrace_send[0])*100000);
@@ -236,8 +273,10 @@ void using_ptrace_ubuntu64(){
         if (ptrace(PTRACE_GETREGS, pid, 0, &regs) == -1) {
 
             // fputs(" = ?\n", stderr);
-            if (errno == ESRCH && !(syscall_ == SYS_exit || syscall_ == SYS_exit_group))
-                exit(regs.rdi); // system call was _exit(2) or similar
+            if (errno == ESRCH && !(syscall_ == SYS_exit || syscall_ == SYS_exit_group)) {
+                // exit(regs.rdi); // system call was _exit(2) or similar
+                FATAL("%s, %ld", strerror(errno), (long) regs.rdi);
+            }
             if(!(syscall_ == SYS_exit || syscall_ == SYS_exit_group))
                 FATAL("%s", strerror(errno));
         }
@@ -250,7 +289,7 @@ void using_ptrace_ubuntu64(){
 
         if(syscall_ == -1){
             fprintf(stderr, "[ERROR] orig_rax is -1\n");
-            exit(EXIT_FAILURE);
+            return;
             break;
         }
         else if(syscall_ == SYS_exit || syscall_ == SYS_exit_group){
@@ -275,10 +314,223 @@ void using_ptrace_ubuntu64(){
     }
 }
 
+#else// !DEFINE_ON_ARM
+#if !DEFINE_RPI
+#define USING_PTRACE() using_ptrace_arm64()
+#include <sys/uio.h>
+#include <linux/elf.h>
+void using_ptrace_arm64(){  // test on jetsonTX2
+    memset(ptrace_count,0,sizeof(ptrace_count[0])*1000000);
+    memset(ptrace_send,'\0',sizeof(ptrace_send[0])*100000);
+
+    pid_t pid = fork();
+    // printf("pid = %d\n",pid);
+    switch (pid) {
+        case -1: /* error */
+            FATAL("%s", strerror(errno));
+        case 0:  /* child */
+            ptrace(PTRACE_TRACEME, 0, 0, 0);
+            /* Because we're now a tracee, execvp will block until the parent
+             * attaches and allows us to continue. */
+            char challenge_path[]="../DPI_challenge-interposition/DPI_challenge";
+            char *args[]={challenge_path,composite_number, NULL};
+            execvp(challenge_path,args);
+            FATAL("[error execvp] %s", strerror(errno));
+    }
+
+
+    /* parent */
+    waitpid(pid, 0, 0); // sync with execvp
+    ptrace(PTRACE_SETOPTIONS, pid, 0, PTRACE_O_EXITKILL);
+
+    for (;;) {
+        /* Enter next system call */
+        if (ptrace(PTRACE_SYSCALL, pid, 0, 0) == -1)
+            FATAL("[error PTRACE_SYSCALL1] %s", strerror(errno));
+        if (waitpid(pid, 0, 0) == -1)
+            FATAL("[error waitpid1] %s", strerror(errno));
+
+
+        /* Gather system call arguments */
+        struct user_regs_struct regs;
+        struct iovec io;
+        io.iov_base = &regs;
+        io.iov_len = sizeof(regs);
+
+        if (ptrace(PTRACE_GETREGSET, pid, (void*)NT_PRSTATUS, &io) == -1)
+            FATAL("[error PTRACE_GETREGSET] %s", strerror(errno));
+
+
+        long syscall_ = (long)regs.regs[8];
+
+        /* Print a representation of the system call */
+        // if(syscall_!=-1)
+        fprintf(stderr, "%ld(%ld, %ld, %ld, %ld, %ld, %ld)",
+                syscall_,
+                (long)regs.regs[0], (long)regs.regs[1], (long)regs.regs[2],
+                (long)regs.regs[3], (long)regs.regs[4],  (long)regs.regs[5]);
+
+
+        /* Run system call and stop on exit */
+        if (ptrace(PTRACE_SYSCALL, pid, 0, 0) == -1)
+            FATAL("[error PTRACE_SYSCALL2] %s", strerror(errno));
+        if (waitpid(pid, 0, 0) == -1)
+            FATAL("[error waitpid2] %s", strerror(errno));
+
+        /* Get system call result */
+        if (ptrace(PTRACE_GETREGSET, pid, (void*)NT_PRSTATUS, &io) == -1) {
+            //fputs(" = ?\n", stderr);
+            if (errno == ESRCH && !(syscall_ == SYS_exit || syscall_ == SYS_exit_group)){
+                // exit((long)regs.regs[0]); // system call was _exit(2) or similar
+                FATAL("%s, %ld", strerror(errno),(long)regs.regs[0]);
+            }
+            if(!(syscall_ == SYS_exit || syscall_ == SYS_exit_group))
+                FATAL("%s", strerror(errno));
+        }
+
+        /* Print system call result */
+        fprintf(stderr, " = %ld\n", (long)regs.regs[0]);
+        if(syscall_!=-1) {
+            ptrace_count[syscall_]++;
+        }
+
+        if(syscall_ == -1){
+            fprintf(stderr, "[ERROR] regs.regs[8] is -1\n");
+            // exit(EXIT_FAILURE);
+            return;
+            break;
+        }
+        else if(syscall_ == SYS_exit || syscall_ == SYS_exit_group){
+            if((long)regs.regs[0]==0) {
+                break;
+            }
+            else{
+                fprintf(stderr, "[INFO] challenge exit code is %ld\n",(long)regs.regs[0]);
+                break;
+            }
+        }
+    }
+
+
+    char ptrace_line[20];
+
+    for(long i=0;i<1000000;i++){
+        if(ptrace_count[i]>0){
+            printf("%ld\t%d\n", i, ptrace_count[i]);
+            sprintf(ptrace_line,"%ld\t%d\n", i, ptrace_count[i]);
+            strcat(ptrace_send,ptrace_line);
+        }
+    }
+}
+
+
+#else // !DEFINE_RPI
+#define USING_PTRACE() using_ptrace_rpi32()
+#include <sys/uio.h>
+#include <linux/elf.h>
+void using_ptrace_rpi32() { // Raspberry Pi pi_armv7l_32
+    memset(ptrace_count,0,sizeof(ptrace_count[0])*1000000);
+    memset(ptrace_send,'\0',sizeof(ptrace_send[0])*100000);
+
+    pid_t pid = fork();
+    // printf("pid = %d\n",pid);
+    switch (pid) {
+        case -1: /* error */
+            FATAL("%s", strerror(errno));
+        case 0:  /* child */
+            ptrace(PTRACE_TRACEME, 0, 0, 0);
+            /* Because we're now a tracee, execvp will block until the parent
+             * attaches and allows us to continue. */
+            char challenge_path[]="../DPI_challenge-interposition/DPI_challenge";
+            char *args[]={challenge_path,composite_number, NULL};
+            execvp(challenge_path,args);
+            FATAL("%s", strerror(errno));
+    }
+
+    /* parent */
+    waitpid(pid, 0, 0); // sync with execvp
+    ptrace(PTRACE_SETOPTIONS, pid, 0, PTRACE_O_EXITKILL);
+
+    for (;;) {
+        /* Enter next system call */
+        if (ptrace(PTRACE_SYSCALL, pid, 0, 0) == -1)
+            FATAL("%s", strerror(errno));
+        if (waitpid(pid, 0, 0) == -1)
+            FATAL("%s", strerror(errno));
+
+        /* Gather system call arguments */
+        struct user_regs uregs;
+        if (ptrace(PTRACE_GETREGS, pid, 0, &uregs) == -1)
+            FATAL("%s", strerror(errno));
+
+
+
+        long syscall_ = (long)uregs.uregs[7];
+
+        /* Print a representation of the system call */
+        // if(syscall_!=-1)
+        fprintf(stderr, "%ld(%ld, %ld, %ld, %ld, %ld, %ld)",
+                syscall_,
+                (long)uregs.uregs[0], (long)uregs.uregs[1], (long)uregs.uregs[2],
+                (long)uregs.uregs[3], (long)uregs.uregs[4],  (long)uregs.uregs[5]);
+
+
+        /* Run system call and stop on exit */
+        if (ptrace(PTRACE_SYSCALL, pid, 0, 0) == -1)
+            FATAL("%s", strerror(errno));
+        if (waitpid(pid, 0, 0) == -1)
+            FATAL("%s", strerror(errno));
+
+        /* Get system call result */
+        if (ptrace(PTRACE_GETREGS, pid, 0, &uregs) == -1) {
+
+            // fputs(" = ?\n", stderr);
+            if (errno == ESRCH && !(syscall_ == SYS_exit || syscall_ == SYS_exit_group)) {
+                //exit(uregs.uregs[0]); // system call was _exit(2) or similar
+                FATAL("%s, %ld", strerror(errno),(long)uregs.uregs[0]);
+            }
+            if(!(syscall_ == SYS_exit || syscall_ == SYS_exit_group))
+                FATAL("%s", strerror(errno));
+        }
+
+        /* Print system call result */
+        fprintf(stderr, " = %ld\n", (long)uregs.uregs[0]);
+        if(syscall_!=-1) {
+            ptrace_count[syscall_]++;
+        }
+
+        if(syscall_ == -1){
+            fprintf(stderr, "[ERROR] orig_rax is -1\n");
+          //  exit(EXIT_FAILURE);
+            return;
+            break;
+        }
+        else if(syscall_ == SYS_exit || syscall_ == SYS_exit_group){
+            if((long)uregs.uregs[0]==0) {
+                break;
+            }
+            else{
+                fprintf(stderr, "[INFO] challenge exit code is %ld\n",(long)uregs.uregs[0]);
+                break;
+            }
+        }
+    }
+
+    char ptrace_line[20];
+
+    for(long i=0;i<1000000;i++){
+        if(ptrace_count[i]>0){
+            printf("%ld\t%d\n", i, ptrace_count[i]);
+            sprintf(ptrace_line,"%ld\t%d\n", i, ptrace_count[i]);
+            strcat(ptrace_send,ptrace_line);
+        }
+    }
+}
+#endif // !DEFINE_RPI
+#endif // !DEFINE_ON_ARM
+
 
 int main(int argc, char **argv) {
-
-
 
     SSL_CTX* ctx;
 
@@ -291,19 +543,19 @@ int main(int argc, char **argv) {
 
     SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
 
-    if (SSL_CTX_load_verify_locations(ctx, "../keys/cacert.pem", NULL) != 1) {
+    if (SSL_CTX_load_verify_locations(ctx, CACERT, NULL) != 1) {
         fprintf(stderr, "SSL_CTX_load_verify_locations ");
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
 
-    if (SSL_CTX_use_certificate_file(ctx, "../keys/clientcert.pem", SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_certificate_file(ctx, CLIENTCERT, SSL_FILETYPE_PEM) <= 0) {
         fprintf(stderr, "SSL_CTX_use_certificate_file ");
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
 
-    if (SSL_CTX_use_PrivateKey_file(ctx, "../keys/clientkey.pem", SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_PrivateKey_file(ctx, CLIENTKEY, SSL_FILETYPE_PEM) <= 0) {
         fprintf(stderr, "SSL_CTX_use_PrivateKey_file ");
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
@@ -319,12 +571,11 @@ int main(int argc, char **argv) {
 
 
     int sock_in, client;
-    sock_in=client_receiver(4321);
+    sock_in=client_receiver(port);
 
 
 
     while(1) {
-
 
         /*socket in*/
         struct sockaddr_in addr_client;
@@ -336,29 +587,29 @@ int main(int argc, char **argv) {
 
         if ( (client = accept(sock_in, ((sockaddr *) &addr_client), &len)) == -1){
             printf("accept socket error: %s(errno: %d)",strerror(errno),errno);
-            break;
+            continue;
         }
 
         ssl = SSL_new(ctx);
         if (ssl == NULL) {
             perror("SSL_new error ");
-            break;
+            continue;
         }
 
         SSL_set_fd(ssl, client);
 
         if (SSL_accept(ssl) <= 0) {
             ERR_print_errors_fp(stderr);
-            break;
+            continue;
         }
         else {
             SSL_read(ssl, composite_number, sizeof(composite_number[0]) * 1000);
             cout << composite_number << endl;
-         //   SSL_write(ssl, reply, strlen(reply));
         }
 
 
-
+        cupaverage=0;
+        cputag=0;
 
         pthread_t thread_challenge;
         pthread_t thread_getcpu;
@@ -381,7 +632,7 @@ int main(int argc, char **argv) {
 
 
         FILE *cpu_txt = fopen("output_cpu.txt", "r");
-        double previous_cpu_average = 0, current_cpu;
+/*        double previous_cpu_average = 0, current_cpu;
         for (int i = 1;; i++) {
             if (fscanf(cpu_txt, "%lf", &current_cpu) == EOF) {
                 break;
@@ -389,29 +640,22 @@ int main(int argc, char **argv) {
             previous_cpu_average = (previous_cpu_average * (i - 1) + current_cpu) / ((double) i);
         }
 
-        printf("average cpu usage: %f\n", previous_cpu_average);
+        printf("average cpu usage (from output_cpu.txt): %f\n", previous_cpu_average);*/
+        printf("average cpu usage (from cupaverage): %f\n", cupaverage);
+
         printf("execution_time: %ld\n", execution_time);
 
 
         char buffer_sendback1[41000]; //challenge result + measurement
         memset(buffer_sendback1,'\0',sizeof(buffer_sendback1[0])*41000);
         sprintf(buffer_sendback1, "%s\n*\nVMSIZE= %d\nRSS= %d\nCPU_usage= %f\nexecurtion_time(10e-6s)= %ld\n@\n", buffer,
-                virtual_proc_mem, proc_mem, previous_cpu_average, execution_time);
-
-
-
-
+                virtual_proc_mem, proc_mem, cupaverage, execution_time);
 
 
 
 
         /* ptrace */
-        using_ptrace_ubuntu64();
-
-
-
-
-
+        USING_PTRACE();
 
         /*send*/
         int ssl_write_result;
@@ -424,15 +668,7 @@ int main(int argc, char **argv) {
         ssl_write_result = SSL_write(ssl, buffer_send_all, 141000);
 
         printf("send back: %d\n", ssl_write_result);
-
-
-
     }
-
-
-
-
-
 
     close(client);
     close(sock_in);

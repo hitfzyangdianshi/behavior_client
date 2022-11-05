@@ -177,7 +177,15 @@ unsigned int get_proc_virtualmem(unsigned int pid){
 int get_pid(const char* process_name, const char* user  )
 {
     if(user == NULL){
+#if __GNUC__ <= 4  /*
+                    * This is only for Raspberry Pi with the gcc/g++ version 4.9.2,
+                    * which the function getlogin() does not work.
+                    * The default username for Raspberry Pi is "pi", and you can change the name here to fit your device
+                    * */
+        user = "pi";
+#else // __GNUC__ <= 4
         user = getlogin();
+#endif // __GNUC__ <= 4
     }
 
     char cmd[512];
