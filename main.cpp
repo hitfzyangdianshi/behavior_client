@@ -9,9 +9,6 @@
 #include<netinet/in.h>
 #include<arpa/inet.h>
 
-// using openssl-1.1.1q
-#include <openssl/ssl.h>
-#include <openssl/err.h>
 
 #include <syscall.h>
 #include <sys/ptrace.h>
@@ -184,31 +181,6 @@ void * get_execurtion_time(void *pVoid){
 
 char accepted_server_address[30];
 
-int client_receiver(int port) {
-    int listenfd, connfd, n;
-    struct sockaddr_in servaddr;
-
-    if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-        printf("create socket error: %s(errno: %d)\n", strerror(errno), errno);
-        return -1;
-    }
-
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    servaddr.sin_port = htons(port);
-
-    if (bind(listenfd, (struct sockaddr *) &servaddr, sizeof(servaddr)) == -1) {
-        printf("bind socket error: %s(errno: %d)\n", strerror(errno), errno);
-        return -1;
-    }
-
-    if (listen(listenfd, 10) == -1) {
-        printf("listen socket error: %s(errno: %d)\n", strerror(errno), errno);
-        return -1;
-    }
-
-    return listenfd;
-}
 
 
 
@@ -530,83 +502,102 @@ void using_ptrace_rpi32() { // Raspberry Pi pi_armv7l_32
 #endif // !DEFINE_ON_ARM
 
 
+
+
+bool client_send(const char *ip, char *buffer_to_send){
+    int   sockfd, n;
+    struct sockaddr_in  servaddr;
+
+    if( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+        printf("create socket error: %s(errno: %d)\n", strerror(errno),errno);
+        return false;
+    }
+
+    memset(&servaddr, 0, sizeof(servaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(port);
+    if( inet_pton(AF_INET, ip, &servaddr.sin_addr) <= 0){
+        printf("inet_pton error for %s\n",ip);
+        return false;
+    }
+
+    if( connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0){
+        printf("connect error: %s(errno: %d)\n",strerror(errno),errno);
+        return false;
+    }
+
+
+    if( send(sockfd, buffer_to_send, strlen(buffer_to_send), 0) < 0){
+        printf("send msg error: %s(errno: %d)\n", strerror(errno), errno);
+        return false;
+    }
+
+    close(sockfd);
+    return true;
+}
+
+
+void client_receiver(){
+    int  listenfd, connfd,             n;
+    struct sockaddr_in  servaddr;
+
+    if( (listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1 ){
+        printf("create socket error: %s(errno: %d)\n",strerror(errno),errno);
+        return ;
+    }
+
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    servaddr.sin_port = htons(port);
+
+    if( bind(listenfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) == -1){
+        printf("bind socket error: %s(errno: %d)\n",strerror(errno),errno);
+        return ;
+    }
+
+    if( listen(listenfd, 10) == -1) {
+        printf("listen socket error: %s(errno: %d)\n", strerror(errno), errno);
+        return ;
+    }
+
+
+
+    struct sockaddr_in addr_client;
+    unsigned int len = sizeof(sockaddr_in);
+
+
+    printf("====== waiting for composite_number ======\n");
+
+    if ( (connfd = accept(listenfd, ((sockaddr *) &addr_client), &len)) == -1){
+        printf("accept socket error: %s(errno: %d)",strerror(errno),errno);
+        return ;
+    }
+
+    n=recv(connfd, composite_number, 9999, 0);
+    composite_number[n] = '\0';
+    printf("receive composite_number[%d]: %s\n", n, composite_number);
+    //for(int i=0;i<9999;i++)printf("%c",received_composite_number[i]);
+
+    printf("accept ip address: %s\n", inet_ntoa(addr_client.sin_addr) );
+
+    close(listenfd);
+    close(connfd);
+}
+
+
+
+
 int main(int argc, char **argv) {
 
-    SSL_CTX* ctx;
-
-    ctx = SSL_CTX_new(TLS_server_method());
-    if (!ctx) {
-        perror("Unable to create SSL context");
-        ERR_print_errors_fp(stderr);
-        exit(EXIT_FAILURE);
-    }
-
-    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
-
-    if (SSL_CTX_load_verify_locations(ctx, CACERT, NULL) != 1) {
-        fprintf(stderr, "SSL_CTX_load_verify_locations ");
-        ERR_print_errors_fp(stderr);
-        exit(EXIT_FAILURE);
-    }
-
-    if (SSL_CTX_use_certificate_file(ctx, CLIENTCERT, SSL_FILETYPE_PEM) <= 0) {
-        fprintf(stderr, "SSL_CTX_use_certificate_file ");
-        ERR_print_errors_fp(stderr);
-        exit(EXIT_FAILURE);
-    }
-
-    if (SSL_CTX_use_PrivateKey_file(ctx, CLIENTKEY, SSL_FILETYPE_PEM) <= 0) {
-        fprintf(stderr, "SSL_CTX_use_PrivateKey_file ");
-        ERR_print_errors_fp(stderr);
-        exit(EXIT_FAILURE);
-    }
-
-    if (SSL_CTX_check_private_key(ctx) != 1) {
-        perror("SSL_CTX_check_private_key failed");
-        ERR_print_errors_fp(stderr);
-        exit(EXIT_FAILURE);
-    }
-
-    SSL_CTX_set_mode(ctx, SSL_MODE_AUTO_RETRY);
-
-
-    int sock_in, client;
-    sock_in=client_receiver(port);
 
 
 
     while(1) {
 
-        /*socket in*/
-        struct sockaddr_in addr_client;
-        unsigned int len = sizeof(sockaddr_in);
-
-        SSL* ssl;
+//        int sock_in, client;
+        client_receiver();
 
         printf("====== waiting for composite_number ======\n");
-
-        if ( (client = accept(sock_in, ((sockaddr *) &addr_client), &len)) == -1){
-            printf("accept socket error: %s(errno: %d)",strerror(errno),errno);
-            continue;
-        }
-
-        ssl = SSL_new(ctx);
-        if (ssl == NULL) {
-            perror("SSL_new error ");
-            continue;
-        }
-
-        SSL_set_fd(ssl, client);
-
-        if (SSL_accept(ssl) <= 0) {
-            ERR_print_errors_fp(stderr);
-            continue;
-        }
-        else {
-            SSL_read(ssl, composite_number, sizeof(composite_number[0]) * 1000);
-            cout << composite_number << endl;
-        }
-
 
         cupaverage=0;
         cputag=0;
@@ -632,7 +623,7 @@ int main(int argc, char **argv) {
 
 
         FILE *cpu_txt = fopen("output_cpu.txt", "r");
-/*        double previous_cpu_average = 0, current_cpu;
+        double previous_cpu_average = 0, current_cpu;
         for (int i = 1;; i++) {
             if (fscanf(cpu_txt, "%lf", &current_cpu) == EOF) {
                 break;
@@ -640,7 +631,7 @@ int main(int argc, char **argv) {
             previous_cpu_average = (previous_cpu_average * (i - 1) + current_cpu) / ((double) i);
         }
 
-        printf("average cpu usage (from output_cpu.txt): %f\n", previous_cpu_average);*/
+        printf("average cpu usage (from output_cpu.txt): %f\n", previous_cpu_average);
         printf("average cpu usage (from cupaverage): %f\n", cupaverage);
 
         printf("execution_time: %ld\n", execution_time);
@@ -658,21 +649,18 @@ int main(int argc, char **argv) {
         USING_PTRACE();
 
         /*send*/
-        int ssl_write_result;
 
         char buffer_send_all[141000];
         memset(buffer_send_all,'\0',sizeof(buffer_send_all[0])*141000);
         strcat(buffer_send_all,buffer_sendback1);
         strcat(buffer_send_all,ptrace_send);
 
-        ssl_write_result = SSL_write(ssl, buffer_send_all, 141000);
-
-        printf("send back: %d\n", ssl_write_result);
+        bool send_data=client_send(argv[1],buffer_send_all);
+        printf("send back: %s\n",btoa(send_data));
     }
 
-    close(client);
-    close(sock_in);
-    SSL_CTX_free(ctx);
+//    close(client);
+//    close(sock_in);
 
     return 0;
 }
