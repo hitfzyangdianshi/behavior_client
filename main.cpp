@@ -158,7 +158,7 @@ void * getmem(void *pVoid){
 }
 
 
-void * get_execurtion_time(void *pVoid){
+void * get_exe_time(void *pVoid){
     int pid = 0;
     while(pid==0){
         pid = get_pid("DPI_challenge");
@@ -605,18 +605,18 @@ int main(int argc, char **argv) {
         pthread_t thread_challenge;
         pthread_t thread_getcpu;
         pthread_t thread_getmem;
-        pthread_t thread_execurtion_time;
+        pthread_t thread_exe_time;
 
 
         pthread_create(&thread_challenge, NULL, run_challenge, NULL);
         pthread_create(&thread_getcpu, NULL, getcpu, NULL);
         pthread_create(&thread_getmem, NULL, getmem, NULL);
-        pthread_create(&thread_execurtion_time, NULL, get_execurtion_time, NULL);
+        pthread_create(&thread_exe_time, NULL, get_exe_time, NULL);
 
         pthread_join(thread_challenge, NULL);
         pthread_join(thread_getcpu, NULL);
         pthread_join(thread_getmem, NULL);
-        pthread_join(thread_execurtion_time, NULL);
+        pthread_join(thread_exe_time, NULL);
 
 
         printf("pthread ends . \n");
@@ -634,12 +634,12 @@ int main(int argc, char **argv) {
         printf("average cpu usage (from output_cpu.txt): %f\n", previous_cpu_average);
         printf("average cpu usage (from cupaverage): %f\n", cupaverage);
 
-        printf("execution_time: %ld\n", execution_time);
+        printf("exe_time: %ld\n", execution_time);
 
 
         char buffer_sendback1[41000]; //challenge result + measurement
         memset(buffer_sendback1,'\0',sizeof(buffer_sendback1[0])*41000);
-        sprintf(buffer_sendback1, "%s\n*\nVMSIZE= %d\nRSS= %d\nCPU_usage= %f\nexecurtion_time(10e-6s)= %ld\n@\n", buffer,
+        sprintf(buffer_sendback1, "%s\n*\nVMSIZE= %d\nRSS= %d\nCPU_usage= %f\nexe_time(10e-6s)= %ld\n@\n", buffer,
                 virtual_proc_mem, proc_mem, cupaverage, execution_time);
 
 
