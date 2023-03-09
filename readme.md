@@ -7,10 +7,10 @@ add `-lpthread` whe using g++ to compile and build
 
 
 ## arm64 (test on jetsonTX2)
-g++ main.cpp utils.cpp  -lpthread -ldl
+`g++ main.cpp utils.cpp  -lpthread -ldl`
 
 ## Raspberry Pi pi_armv7l_32
-g++ main.cpp utils.cpp  -lpthread -ldl -DRPI
+`g++ main.cpp utils.cpp  -lpthread -ldl -DRPI`
 
 (luckily, this works for g++ version 4.9.2)
 
